@@ -14,7 +14,6 @@ pub use addin::*;
 pub use cookies::*;
 pub use governance::*;
 pub use solana::*;
-pub use utils::*;
 
 pub mod addin;
 pub mod cookies;
@@ -79,6 +78,7 @@ impl Log for LoggerWrapper {
     fn flush(&self) {}
 }
 
+#[allow(dead_code)]
 pub struct TestContext {
     pub solana: Arc<SolanaCookie>,
     pub governance: GovernanceCookie,
@@ -107,21 +107,15 @@ impl TestContext {
 
         let addin_program_id = voter_stake_registry::id();
 
-        let mut test = ProgramTest::new(
-            "voter_stake_registry",
-            addin_program_id,
-            processor!(voter_stake_registry::entry),
-        );
+        // Both programs run from their SBF builds (see run-test.sh / `cargo test-sbf`):
+        // voter_stake_registry.so from the build output and spl_governance.so from tests/fixtures.
+        let mut test = ProgramTest::new("voter_stake_registry", addin_program_id, None);
         // intentionally set to half the limit, to catch potential problems early
         test.set_compute_max_units(120000);
 
         let governance_program_id =
             Pubkey::from_str(&"GovernanceProgramTest1111111111111111111111").unwrap();
-        test.add_program(
-            "spl_governance",
-            governance_program_id,
-            processor!(spl_governance::processor::process_instruction),
-        );
+        test.add_program("spl_governance", governance_program_id, None);
 
         // Setup the environment
 
@@ -210,7 +204,7 @@ impl TestContext {
             });
         }
 
-        let mut context = test.start_with_context().await;
+        let context = test.start_with_context().await;
         let rent = context.banks_client.get_rent().await.unwrap();
 
         let solana = Arc::new(SolanaCookie {

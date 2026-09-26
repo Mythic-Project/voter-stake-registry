@@ -31,7 +31,6 @@ async fn get_lockup_data(
     )
 }
 
-#[allow(unaligned_references)]
 #[tokio::test]
 async fn test_internal_transfer() -> Result<(), TransportError> {
     let context = TestContext::new().await;

@@ -1,5 +1,4 @@
 use crate::error::*;
-use anchor_lang::__private::bytemuck::Zeroable;
 use anchor_lang::prelude::*;
 use std::convert::TryFrom;
 
@@ -9,7 +8,7 @@ const SCALED_FACTOR_BASE: u64 = 1_000_000_000;
 ///
 /// See documentation of configure_voting_mint for details on how
 /// native token amounts convert to vote weight.
-#[zero_copy]
+#[zero_copy(unsafe)]
 #[derive(Default)]
 pub struct VotingMintConfig {
     /// Mint for this entry.
@@ -109,5 +108,3 @@ impl VotingMintConfig {
             || self.max_extra_lockup_vote_weight_scaled_factor > 0
     }
 }
-
-unsafe impl Zeroable for VotingMintConfig {}

@@ -6,7 +6,7 @@ use std::cmp::min;
 use std::convert::TryFrom;
 
 /// Bookkeeping for a single deposit for a given mint and lockup schedule.
-#[zero_copy]
+#[zero_copy(unsafe)]
 #[derive(Default)]
 pub struct DepositEntry {
     // Locked state.
@@ -245,8 +245,17 @@ impl DepositEntry {
             )
             .unwrap();
 
+        // All remaining vesting cliffs are saturated. Only the periods_left out of
+        // periods_total cliffs are still locked, the others already vested.
         if secs_to_closest_cliff >= lockup_saturation_secs {
-            return Ok(max_locked_vote_weight);
+            return Ok(u64::try_from(
+                (max_locked_vote_weight as u128)
+                    .checked_mul(periods_left as u128)
+                    .unwrap()
+                    .checked_div(periods_total as u128)
+                    .unwrap(),
+            )
+            .unwrap());
         }
 
         // In the example above, periods_total was 5.
@@ -516,6 +525,60 @@ mod tests {
             .voting_power(&voting_mint_config, lockup_start - saturation + 2 * day + 1)
             .unwrap();
         assert_eq!(voting_power, 18_999);
+
+        Ok(())
+    }
+
+    #[test]
+    pub fn saturated_linear_vesting_test() -> Result<()> {
+        // Check that already vested periods don't contribute locked vote weight when
+        // lockup_saturation_secs is shorter than a vesting period.
+        let day: i64 = 86_400;
+        let month = crate::state::lockup::SECS_PER_MONTH as i64;
+        let saturation = (7 * day) as u64;
+        let start = 10_000_000_000; // arbitrary point
+        let mut deposit = DepositEntry {
+            amount_deposited_native: 1_200,
+            amount_initially_locked_native: 1_200,
+            lockup: Lockup::new_from_periods(LockupKind::Monthly, start, start, 12)?,
+            is_used: true,
+            allow_clawback: false,
+            voting_mint_config_idx: 0,
+            reserved: [0; 29],
+        };
+        let voting_mint_config = VotingMintConfig {
+            mint: Pubkey::default(),
+            grant_authority: Pubkey::default(),
+            baseline_vote_weight_scaled_factor: 1_000_000_000, // 1x
+            max_extra_lockup_vote_weight_scaled_factor: 1_000_000_000, // 1x
+            lockup_saturation_secs: saturation,
+            digit_shift: 0,
+            reserved1: [0; 7],
+            reserved2: [0; 7],
+        };
+
+        // Nothing vested yet: all 12 cliffs are locked and saturated
+        let voting_power = deposit.voting_power(&voting_mint_config, start + day)?;
+        assert_eq!(voting_power, 2_400);
+
+        // After 40 days one period vested, the next cliff is ~20.8 days away
+        let time = start + 40 * day;
+        assert_eq!(deposit.lockup.periods_left(time)?, 11);
+        assert_eq!(deposit.amount_unlocked(time), 100);
+        let voting_power = deposit.voting_power(&voting_mint_config, time)?;
+        assert_eq!(voting_power, 1_200 + 1_100);
+
+        // Withdrawing the vested tokens must not keep their locked vote weight
+        deposit.amount_deposited_native -= 100;
+        let voting_power = deposit.voting_power(&voting_mint_config, time)?;
+        assert_eq!(voting_power, 1_100 + 1_100);
+
+        // One period left, 20 days to the last cliff
+        let time = start + 12 * month - 20 * day;
+        assert_eq!(deposit.lockup.periods_left(time)?, 1);
+        deposit.amount_deposited_native = 100;
+        let voting_power = deposit.voting_power(&voting_mint_config, time)?;
+        assert_eq!(voting_power, 100 + 100);
 
         Ok(())
     }

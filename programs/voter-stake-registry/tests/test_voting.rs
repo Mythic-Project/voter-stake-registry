@@ -6,7 +6,6 @@ use voter_stake_registry::state::LockupKind;
 
 mod program_test;
 
-#[allow(unaligned_references)]
 #[tokio::test]
 async fn test_voting() -> Result<(), TransportError> {
     let context = TestContext::new().await;
@@ -236,7 +235,7 @@ async fn test_voting() -> Result<(), TransportError> {
     let proposal_data = context.solana.get_account_data(proposal.address).await;
     let mut data_slice: &[u8] = &proposal_data;
     let proposal_state: spl_governance::state::proposal::ProposalV2 =
-        anchor_lang::AnchorDeserialize::deserialize(&mut data_slice).unwrap();
+        borsh1::BorshDeserialize::deserialize(&mut data_slice).unwrap();
     assert_eq!(proposal_state.options[0].vote_weight, 2 * 750);
     assert_eq!(proposal_state.deny_vote_weight.unwrap(), 0);
 

@@ -3,9 +3,31 @@ use std::sync::Arc;
 use solana_program::instruction::Instruction;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::{Keypair, Signer};
+use spl_governance::state::enums::{VoteThreshold, VoteTipping};
+use spl_governance::state::governance::GovernanceConfig;
+use spl_governance::state::realm::GoverningTokenConfigAccountArgs;
+use spl_governance::state::realm_config::GoverningTokenType;
 use spl_governance::state::{proposal, vote_record};
 
 use crate::*;
+
+fn governance_config() -> GovernanceConfig {
+    GovernanceConfig {
+        community_vote_threshold: VoteThreshold::YesVotePercentage(50),
+        min_community_weight_to_create_proposal: 1000,
+        min_transaction_hold_up_time: 0,
+        voting_base_time: 10,
+        community_vote_tipping: VoteTipping::Disabled,
+        council_vote_threshold: VoteThreshold::Disabled,
+        council_veto_vote_threshold: VoteThreshold::Disabled,
+        min_council_weight_to_create_proposal: 1,
+        council_vote_tipping: VoteTipping::Disabled,
+        community_veto_vote_threshold: VoteThreshold::Disabled,
+        voting_cool_off_time: 0,
+        // keep proposal creation free of the SOL security deposit
+        deposit_exempt_proposal_count: 10,
+    }
+}
 
 #[derive(Clone)]
 pub struct GovernanceCookie {
@@ -13,6 +35,7 @@ pub struct GovernanceCookie {
     pub program_id: Pubkey,
 }
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct GovernanceRealmCookie {
     pub governance: GovernanceCookie,
@@ -28,11 +51,13 @@ pub struct TokenOwnerRecordCookie {
     pub address: Pubkey,
 }
 
+#[allow(dead_code)]
 pub struct AccountGovernanceCookie {
     pub address: Pubkey,
     pub governed_account: Pubkey,
 }
 
+#[allow(dead_code)]
 pub struct MintGovernanceCookie {
     pub address: Pubkey,
     pub governed_mint: Pubkey,
@@ -79,11 +104,17 @@ impl GovernanceCookie {
             &community_token_mint.pubkey.unwrap(),
             &payer.pubkey(),
             None,
-            Some(*voter_weight_addin),
+            Some(GoverningTokenConfigAccountArgs {
+                voter_weight_addin: Some(*voter_weight_addin),
+                max_voter_weight_addin: None,
+                token_type: GoverningTokenType::Liquid,
+            }),
             None,
             name.to_string(),
             0,
-            spl_governance::state::enums::MintMaxVoteWeightSource::SupplyFraction(10000000000),
+            spl_governance::state::enums::MintMaxVoterWeightSource::SupplyFraction(10000000000),
+            false,
+            false,
         )];
 
         let signer = Keypair::from_base58_string(&payer.to_base58_string());
@@ -165,16 +196,7 @@ impl GovernanceRealmCookie {
                 &payer.pubkey(),
                 &authority.pubkey(),
                 Some(voter.voter_weight_record),
-                spl_governance::state::governance::GovernanceConfig {
-                    vote_threshold_percentage:
-                        spl_governance::state::enums::VoteThresholdPercentage::YesVote(50),
-                    min_community_weight_to_create_proposal: 1000,
-                    min_transaction_hold_up_time: 0,
-                    max_voting_time: 10,
-                    vote_tipping: spl_governance::state::enums::VoteTipping::Disabled,
-                    proposal_cool_off_time: 0,
-                    min_council_weight_to_create_proposal: 1,
-                },
+                governance_config(),
             ),
         ];
 
@@ -203,7 +225,9 @@ impl GovernanceRealmCookie {
         payer: &Keypair,
         vwr_instruction: Instruction,
     ) -> MintGovernanceCookie {
-        let mint_governance = spl_governance::state::governance::get_mint_governance_address(
+        // spl-governance v3 dropped CreateMintGovernance: create a regular governance
+        // over the mint and transfer the mint authority to it.
+        let mint_governance = spl_governance::state::governance::get_governance_address(
             &self.governance.program_id,
             &self.realm,
             &governed_mint,
@@ -211,27 +235,25 @@ impl GovernanceRealmCookie {
 
         let instructions = vec![
             vwr_instruction,
-            spl_governance::instruction::create_mint_governance(
+            spl_governance::instruction::create_governance(
                 &self.governance.program_id,
                 &self.realm,
-                &governed_mint,
-                &governed_mint_authority.pubkey(),
+                Some(&governed_mint),
                 &voter.token_owner_record,
                 &payer.pubkey(),
                 &authority.pubkey(),
                 Some(voter.voter_weight_record),
-                spl_governance::state::governance::GovernanceConfig {
-                    vote_threshold_percentage:
-                        spl_governance::state::enums::VoteThresholdPercentage::YesVote(50),
-                    min_community_weight_to_create_proposal: 1000,
-                    min_transaction_hold_up_time: 0,
-                    max_voting_time: 10,
-                    vote_tipping: spl_governance::state::enums::VoteTipping::Disabled,
-                    proposal_cool_off_time: 0,
-                    min_council_weight_to_create_proposal: 1,
-                },
-                true,
+                governance_config(),
             ),
+            spl_token::instruction::set_authority(
+                &spl_token::id(),
+                &governed_mint,
+                Some(&mint_governance),
+                spl_token::instruction::AuthorityType::MintTokens,
+                &governed_mint_authority.pubkey(),
+                &[],
+            )
+            .unwrap(),
         ];
 
         let signer1 = Keypair::from_base58_string(&payer.to_base58_string());
@@ -259,11 +281,12 @@ impl GovernanceRealmCookie {
         payer: &Keypair,
         vwr_instruction: Instruction,
     ) -> std::result::Result<ProposalCookie, BanksClientError> {
+        let proposal_seed = Pubkey::new_unique();
         let proposal = spl_governance::state::proposal::get_proposal_address(
             &self.governance.program_id,
             &governance,
             &self.community_token_mint.pubkey.unwrap(),
-            &0u32.to_le_bytes(),
+            &proposal_seed,
         );
 
         let instructions = vec![
@@ -282,7 +305,7 @@ impl GovernanceRealmCookie {
                 proposal::VoteType::SingleChoice,
                 vec!["yes".into()],
                 true,
-                0,
+                &proposal_seed,
             ),
             spl_governance::instruction::add_signatory(
                 &self.governance.program_id,
@@ -367,6 +390,7 @@ impl GovernanceRealmCookie {
     ) -> std::result::Result<(), BanksClientError> {
         let instructions = vec![spl_governance::instruction::relinquish_vote(
             &self.governance.program_id,
+            &self.realm,
             &governance,
             &proposal.address,
             &token_owner_record,

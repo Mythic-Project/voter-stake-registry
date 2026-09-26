@@ -36,9 +36,7 @@ pub struct CloseVoter<'info> {
 /// Closes the voter account (Optionally, also token vaults, as part of remaining_accounts),
 /// allowing one to retrieve rent exemption SOL.
 /// Only accounts with no remaining deposits can be closed.
-pub fn close_voter<'key, 'accounts, 'remaining, 'info>(
-    ctx: Context<'key, 'accounts, 'remaining, 'info, CloseVoter<'info>>,
-) -> Result<()> {
+pub fn close_voter<'info>(ctx: Context<'_, '_, 'info, 'info, CloseVoter<'info>>) -> Result<()> {
     {
         let voter = ctx.accounts.voter.load()?;
         let amount = voter.deposits.iter().fold(0u64, |sum, d| {
@@ -48,7 +46,7 @@ pub fn close_voter<'key, 'accounts, 'remaining, 'info>(
 
         let voter_seeds = voter_seeds!(voter);
         for account in &mut ctx.remaining_accounts.iter() {
-            let token = Account::<TokenAccount>::try_from(&account.clone()).unwrap();
+            let token = Account::<TokenAccount>::try_from(account).unwrap();
             require_keys_eq!(
                 token.owner,
                 ctx.accounts.voter.key(),

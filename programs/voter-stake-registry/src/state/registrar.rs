@@ -4,7 +4,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::Mint;
 
 /// Instance of a voting rights distributor.
-#[account(zero_copy)]
+#[account(zero_copy(unsafe))]
 #[derive(Default)]
 pub struct Registrar {
     pub governance_program_id: Pubkey,
@@ -42,7 +42,10 @@ impl Registrar {
             .ok_or_else(|| error!(VsrError::VotingMintNotFound))
     }
 
-    pub fn max_vote_weight(&self, mint_accounts: &[AccountInfo]) -> Result<u64> {
+    pub fn max_vote_weight<'info>(
+        &self,
+        mint_accounts: &'info [AccountInfo<'info>],
+    ) -> Result<u64> {
         self.voting_mints
             .iter()
             .try_fold(0u64, |mut sum, voting_mint_config| -> Result<u64> {

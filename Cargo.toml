@@ -1,7 +1,11 @@
 [workspace]
+resolver = "2"
 members = [
     "programs/*",
     # Drop everything below this line before running "anchor publish":
     # Otherwise the build will fail since Anchor uploads only parts of the source tree.
     "cli/"
 ]
+
+[profile.release]
+overflow-checks = true

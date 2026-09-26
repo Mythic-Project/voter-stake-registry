@@ -29,7 +29,7 @@ impl SolanaCookie {
     ) -> Result<(), BanksClientError> {
         *self.program_output.write().unwrap() = super::ProgramOutput::default();
 
-        let mut context = self.context.borrow_mut();
+        let context = self.context.borrow_mut();
 
         let mut transaction =
             Transaction::new_with_payer(&instructions, Some(&context.payer.pubkey()));
