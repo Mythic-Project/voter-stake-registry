@@ -9,6 +9,7 @@ const SCALED_FACTOR_BASE: u64 = 1_000_000_000;
 /// See documentation of configure_voting_mint for details on how
 /// native token amounts convert to vote weight.
 #[zero_copy(unsafe)]
+#[repr(C)]
 #[derive(Default)]
 pub struct VotingMintConfig {
     /// Mint for this entry.
@@ -43,6 +44,16 @@ pub struct VotingMintConfig {
 }
 const_assert!(std::mem::size_of::<VotingMintConfig>() == 2 * 32 + 3 * 8 + 1 + 63);
 const_assert!(std::mem::size_of::<VotingMintConfig>() % 8 == 0);
+const_assert!(std::mem::offset_of!(VotingMintConfig, mint) == 0);
+const_assert!(std::mem::offset_of!(VotingMintConfig, grant_authority) == 32);
+const_assert!(std::mem::offset_of!(VotingMintConfig, baseline_vote_weight_scaled_factor) == 64);
+const_assert!(
+    std::mem::offset_of!(VotingMintConfig, max_extra_lockup_vote_weight_scaled_factor) == 72
+);
+const_assert!(std::mem::offset_of!(VotingMintConfig, lockup_saturation_secs) == 80);
+const_assert!(std::mem::offset_of!(VotingMintConfig, digit_shift) == 88);
+const_assert!(std::mem::offset_of!(VotingMintConfig, reserved1) == 89);
+const_assert!(std::mem::offset_of!(VotingMintConfig, reserved2) == 96);
 
 impl VotingMintConfig {
     /// Converts an amount in this voting mints's native currency

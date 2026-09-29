@@ -7,6 +7,7 @@ use std::convert::TryFrom;
 
 /// Bookkeeping for a single deposit for a given mint and lockup schedule.
 #[zero_copy(unsafe)]
+#[repr(C)]
 #[derive(Default)]
 pub struct DepositEntry {
     // Locked state.
@@ -42,6 +43,13 @@ pub struct DepositEntry {
 }
 const_assert!(std::mem::size_of::<DepositEntry>() == 32 + 2 * 8 + 3 + 29);
 const_assert!(std::mem::size_of::<DepositEntry>() % 8 == 0);
+const_assert!(std::mem::offset_of!(DepositEntry, lockup) == 0);
+const_assert!(std::mem::offset_of!(DepositEntry, amount_deposited_native) == 32);
+const_assert!(std::mem::offset_of!(DepositEntry, amount_initially_locked_native) == 40);
+const_assert!(std::mem::offset_of!(DepositEntry, is_used) == 48);
+const_assert!(std::mem::offset_of!(DepositEntry, allow_clawback) == 49);
+const_assert!(std::mem::offset_of!(DepositEntry, voting_mint_config_idx) == 50);
+const_assert!(std::mem::offset_of!(DepositEntry, reserved) == 51);
 
 impl DepositEntry {
     /// # Voting Power Caclulation

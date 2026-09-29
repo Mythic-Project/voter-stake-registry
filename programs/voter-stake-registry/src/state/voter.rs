@@ -6,6 +6,7 @@ use spl_governance::state::token_owner_record;
 
 /// User account for minting voting rights.
 #[account(zero_copy(unsafe))]
+#[repr(C)]
 pub struct Voter {
     pub voter_authority: Pubkey,
     pub registrar: Pubkey,
@@ -16,6 +17,12 @@ pub struct Voter {
 }
 const_assert!(std::mem::size_of::<Voter>() == 2 * 32 + 32 * 80 + 2 + 94);
 const_assert!(std::mem::size_of::<Voter>() % 8 == 0);
+const_assert!(std::mem::offset_of!(Voter, voter_authority) == 0);
+const_assert!(std::mem::offset_of!(Voter, registrar) == 32);
+const_assert!(std::mem::offset_of!(Voter, deposits) == 64);
+const_assert!(std::mem::offset_of!(Voter, voter_bump) == 2624);
+const_assert!(std::mem::offset_of!(Voter, voter_weight_record_bump) == 2625);
+const_assert!(std::mem::offset_of!(Voter, reserved) == 2626);
 
 impl Voter {
     /// The full vote weight available to the voter

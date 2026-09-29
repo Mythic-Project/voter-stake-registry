@@ -5,6 +5,7 @@ use anchor_spl::token::Mint;
 
 /// Instance of a voting rights distributor.
 #[account(zero_copy(unsafe))]
+#[repr(C)]
 #[derive(Default)]
 pub struct Registrar {
     pub governance_program_id: Pubkey,
@@ -25,6 +26,16 @@ pub struct Registrar {
 }
 const_assert!(std::mem::size_of::<Registrar>() == 5 * 32 + 4 * 152 + 8 + 1 + 95);
 const_assert!(std::mem::size_of::<Registrar>() % 8 == 0);
+const_assert!(std::mem::offset_of!(Registrar, governance_program_id) == 0);
+const_assert!(std::mem::offset_of!(Registrar, realm) == 32);
+const_assert!(std::mem::offset_of!(Registrar, realm_governing_token_mint) == 64);
+const_assert!(std::mem::offset_of!(Registrar, realm_authority) == 96);
+const_assert!(std::mem::offset_of!(Registrar, reserved1) == 128);
+const_assert!(std::mem::offset_of!(Registrar, voting_mints) == 160);
+const_assert!(std::mem::offset_of!(Registrar, time_offset) == 768);
+const_assert!(std::mem::offset_of!(Registrar, bump) == 776);
+const_assert!(std::mem::offset_of!(Registrar, reserved2) == 777);
+const_assert!(std::mem::offset_of!(Registrar, reserved3) == 784);
 
 impl Registrar {
     pub fn clock_unix_timestamp(&self) -> i64 {

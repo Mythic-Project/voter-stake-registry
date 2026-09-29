@@ -27,6 +27,7 @@ pub const MAX_LOCKUP_PERIODS: u32 = 365 * 200;
 pub const MAX_LOCKUP_IN_FUTURE_SECS: i64 = 100 * 365 * 24 * 60 * 60;
 
 #[zero_copy(unsafe)]
+#[repr(C)]
 pub struct Lockup {
     /// Start of the lockup.
     ///
@@ -48,6 +49,10 @@ pub struct Lockup {
 }
 const_assert!(std::mem::size_of::<Lockup>() == 2 * 8 + 1 + 15);
 const_assert!(std::mem::size_of::<Lockup>() % 8 == 0);
+const_assert!(std::mem::offset_of!(Lockup, start_ts) == 0);
+const_assert!(std::mem::offset_of!(Lockup, end_ts) == 8);
+const_assert!(std::mem::offset_of!(Lockup, kind) == 16);
+const_assert!(std::mem::offset_of!(Lockup, reserved) == 17);
 
 impl Default for Lockup {
     fn default() -> Self {
